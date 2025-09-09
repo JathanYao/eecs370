@@ -11,6 +11,7 @@
 
 // Every LC2K file will contain less than 1000 lines of assembly.
 #define MAXLINELENGTH 1000
+#define MAXADDRESSES 65535
 
 int readAndParse(FILE *, char *, char *, char *, char *, char *);
 static void checkForBlankLinesInCode(FILE *inFilePtr);
@@ -74,83 +75,126 @@ int main(int argc, char **argv)
     /* this is how to rewind the file ptr so that you start reading from the
         beginning of the file */
     rewind(inFilePtr);
-
+    pc = 0;
     // SECOND PASS, GENERATE MACHINE LANGUAGE INSTRUCTIONS
-    int line = 0;
     while (readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2))
     {
-        int a0 = atoi(arg0), a1 = atoi(arg1), a2 = -1;
-        if (!isNumber(arg2)) // arg2 is a label, find line for the label from label_line
+        int a0 = atoi(arg0), a1 = atoi(arg1), a2 = -1, line = 0;
+        
+        if (strcmp(opcode, "halt") && strcmp(opcode, "noop") && strcmp(opcode, ".fill"))
         {
-            for (int i = 0; i < count; i++)
+            //only perform for RIJ types
+            if (!isNumber(arg2)) // arg2 is a label, find line for the label from label_line
             {
-                if (!strcmp(lab[i].label, arg2))
+                for (int i = 0; i < count; i++)
                 {
-                    // found corresponding label
-                    a2 = lab[i].line;
+                    if (!strcmp(lab[i].label, arg2))
+                    {
+                        // found corresponding label
+                        a2 = lab[i].line;
+                    }
+                }
+                if (a2 < 0)
+                {
+                    printf("Label undefined");
+                    exit(1);
                 }
             }
-            if (a2 < 0)
-            {
-                printf("Label undefined");
-                exit(1);
-            }
-        }
-        else
-            a2 = atoi(arg2);
+            else
+                a2 = atoi(arg2);
 
+            line += (a0 << 19); //reg A
+            line += (a1 << 16); //reg B
+        }
+        
         // ALL 8 FUNCTIONS
-        if (!strcmp(opcode, "add") || strcmp(opcode, "nor"))
+        if (!strcmp(opcode, "add") || !strcmp(opcode, "nor"))
         {
-            if (!strcmp(opcode, "nor"))
-                line++;
-            line = a0;
-            line = (line << 3) + a1;
-            line <<= 16;
-            line += a2;
-            printHexToFile(outFilePtr, 123);
+            if(!strcmp(opcode, "nor"))line += (1 << 22);
+            line += a2; // destReg
         }
         else if (!strcmp(opcode, "lw") || !strcmp(opcode, "sw") || !strcmp(opcode, "beq"))
         {
-            line += 2; // case for lw
-            if (!strcmp(opcode, "sw"))
-                line++;
-            else if (!strcmp(opcode, "beq"))
-                line += 2;
-            line = (line << 3) + a0;
-            line = (line << 3) + a1;
-            line = (line << 15) + a2;
+            line += (2 << 22);
+            if(!strcmp(opcode, "sw"))line += (1 << 22);
+            if(!strcmp(opcode, "beq"))
+            {
+                line += (2 << 22);
+                if (!isNumber(arg2)) // arg2 is a label, find line for the label from label_line
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (!strcmp(lab[i].label, arg2))
+                        {
+                            // found corresponding label
+                            a2 = lab[i].line;
+                            break;
+                        }
+                    }
+                    if (a2 < 0)
+                    {
+                        printf("Label undefined");
+                        exit(1);
+                    }
+                    int16_t offset = (a2 - (pc + 1));
+                    line += offset & 0xFFFF; //must jump to label line, make it 16-bits
+                }
+                else
+                {
+                    //regular addition jump
+                    a2 = atoi(arg2);
+                    line += (a2);
+                }
+            }else line += (a2);
         }
         else if (!strcmp(opcode, "jalr"))
         {
-            line += 5;
+            line += (5 << 22);
         }
-        else if (!strcmp(opcode, "halt"))
+        else if(!strcmp(opcode, "halt") || !strcmp(opcode, "noop"))
         {
+            line += (6 << 22);
+            if(!strcmp(opcode, "noop"))line += (1 << 22);
         }
-        else // noop
+        else if(!strcmp(opcode, ".fill"))
         {
+            if (!isNumber(arg0)) // arg0 is a label, find line for the label from label_line
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    if (!strcmp(lab[i].label, arg0))
+                    {
+                        // found corresponding label
+                        a0 = lab[i].line;
+                        break;
+                    }
+                }
+                if (a0 < 0)
+                {
+                    printf("Label undefined");
+                    exit(1);
+                }
+                line += a0; //must jump to label line, make it 16-bits
+            }
+            else
+            {
+                //regular addition jump
+                a0 = atoi(arg0);
+                line += (a0);
+            }
         }
-    }
-
-    /* after doing a readAndParse, you may want to do the following to test the
-        opcode */
-    if (!strcmp(opcode, "add"))
-    {
-        /* do whatever you need to do for opcode "add" */
-    }
-
-    /* here is an example of using isNumber. "5" is a number, so this will
-       return true */
-    if (isNumber("5"))
-    {
-        printf("It's a number\n");
+        else // error
+        {
+            printf("error");
+            exit(1);
+        }
+         printHexToFile(outFilePtr, line);
+         pc++;
     }
 
     /* here is an example of using printHexToFile. This will print a
        machine code word / number in the proper hex format to the output file */
-    printHexToFile(outFilePtr, 123);
-
+    //printHexToFile(outFilePtr, 123);
     return (0);
 }
 
