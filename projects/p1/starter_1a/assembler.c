@@ -71,6 +71,19 @@ int main(int argc, char **argv)
         }
         pc++;
     }
+    //error checking, check for duplicates
+    for(int i = 0; i < count; i++)
+    {
+        for(int j = 0; j < count; j++)
+        {
+            if(j == i)continue;
+            if(!strcmp(lab[i].label, lab[j].label))
+            {
+                printf("duplicate labels");
+                exit(1);
+            }
+        }
+    }
 
     /* this is how to rewind the file ptr so that you start reading from the
         beginning of the file */
@@ -79,109 +92,109 @@ int main(int argc, char **argv)
     // SECOND PASS, GENERATE MACHINE LANGUAGE INSTRUCTIONS
     while (readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2))
     {
-        int a0 = atoi(arg0), a1 = atoi(arg1), a2 = -1, line = 0;
-        
-        if (strcmp(opcode, "halt") && strcmp(opcode, "noop") && strcmp(opcode, ".fill"))
+        int line = 0, a0 = atoi(arg0), a1 = atoi(arg1), a2 = atoi(arg2);
+        // ALL 8 FUNCTIONS
+        if (!strcmp(opcode, "add") || !strcmp(opcode, "nor"))
         {
-            //only perform for RIJ types
-            if (!isNumber(arg2)) // arg2 is a label, find line for the label from label_line
+            if(a0 > 7 || a0 < 0 || a1 > 7 || a1 < 0 || a2 > 7 || a2 < 0 || !isNumber(arg2))
             {
+                printf("invalid registers");
+                exit(1);
+            }
+            a2 = atoi(arg2);
+            line += (a0 << 19) + (a1 << 16) + a2; //opcode is 000, just add the three arguments
+            if(!strcmp(opcode, "nor"))line += (1 << 22);
+        }
+        else if (!strcmp(opcode, "lw") || !strcmp(opcode, "sw") || !strcmp(opcode, "beq"))
+        {
+            if(!isNumber(arg0) || !isNumber(arg1) || a0 > 7 || a0 < 0 || a1 > 7 || a1 < 0)
+            {
+                printf("invalid registers");
+                exit(1);
+            }
+            if(!strcmp(opcode, "lw"))line += (0b010 << 22); //lw
+            else if(!strcmp(opcode, "sw")) line += (0b011 << 22); //sw
+            else 
+            {
+                line += (0b100 << 22);//beq
+            }
+
+            line += (a0 << 19) + (a1 << 16);
+            //check if arg2 is a label or a number
+            if(isNumber(arg2))
+            {
+                a2 = atoi(arg2);
+                if(a2 >= 32768 || a2 <= -32769)
+                {
+                    printf("arg2 exceeds limit");
+                    exit(1);                
+                }
+                if(!strcmp(opcode, "beq"))line += (a2 & 0xFFFF);
+            }else
+            {
+                //lookup label name address
+                bool found = false;
                 for (int i = 0; i < count; i++)
                 {
                     if (!strcmp(lab[i].label, arg2))
                     {
                         // found corresponding label
                         a2 = lab[i].line;
+                        found = true;
+                        break;
                     }
                 }
-                if (a2 < 0)
+                if (!found)
                 {
-                    printf("Label undefined");
+                    printf("Label undefined lw/sw/beq");
                     exit(1);
                 }
+                if(!strcmp(opcode, "beq"))line += (0xFFFF & (a2 - pc - 1));
             }
-            else
-                a2 = atoi(arg2);
-
-            line += (a0 << 19); //reg A
-            line += (a1 << 16); //reg B
-        }
-        
-        // ALL 8 FUNCTIONS
-        if (!strcmp(opcode, "add") || !strcmp(opcode, "nor"))
-        {
-            if(!strcmp(opcode, "nor"))line += (1 << 22);
-            line += a2; // destReg
-        }
-        else if (!strcmp(opcode, "lw") || !strcmp(opcode, "sw") || !strcmp(opcode, "beq"))
-        {
-            line += (2 << 22);
-            if(!strcmp(opcode, "sw"))line += (1 << 22);
-            if(!strcmp(opcode, "beq"))
-            {
-                line += (2 << 22);
-                if (!isNumber(arg2)) // arg2 is a label, find line for the label from label_line
-                {
-                    for (int i = 0; i < count; i++)
-                    {
-                        if (!strcmp(lab[i].label, arg2))
-                        {
-                            // found corresponding label
-                            a2 = lab[i].line;
-                            break;
-                        }
-                    }
-                    if (a2 < 0)
-                    {
-                        printf("Label undefined");
-                        exit(1);
-                    }
-                    int16_t offset = (a2 - (pc + 1));
-                    line += offset & 0xFFFF; //must jump to label line, make it 16-bits
-                }
-                else
-                {
-                    //regular addition jump
-                    a2 = atoi(arg2);
-                    line += (a2);
-                }
-            }else line += (a2);
+            if(!strcmp(opcode, "lw") || !strcmp(opcode, "sw"))line += (a2 & 0xFFFF); //ensures that offset is a twos complement number
         }
         else if (!strcmp(opcode, "jalr"))
         {
-            line += (5 << 22);
+            if(!isNumber(arg0) || !isNumber(arg1) || a0 > 7 || a0 < 0 || a1 > 7 || a1 < 0)
+            {
+                printf("invalid registers");
+                exit(1);
+            }
+            line += (0b101 << 22) + (a0 << 19) + (a1 << 16); //opcode is 101
         }
-        else if(!strcmp(opcode, "halt") || !strcmp(opcode, "noop"))
-        {
-            line += (6 << 22);
-            if(!strcmp(opcode, "noop"))line += (1 << 22);
-        }
+        else if(!strcmp(opcode, "halt"))line += (0b110 << 22); //opcode is 110
+        else if (!strcmp(opcode, "noop"))line += (0b111 << 22); //opcode is 111
         else if(!strcmp(opcode, ".fill"))
         {
-            if (!isNumber(arg0)) // arg0 is a label, find line for the label from label_line
+            if(isNumber(arg0))
             {
+                a0 = atoi(arg0);
+                if(a0 >= 32768 || a0 <= -32769)
+                {
+                    printf("arg0 exceeds limit");
+                    exit(1);                
+                }
+            }else
+            {
+                //lookup label name address
+                bool found = false;
                 for (int i = 0; i < count; i++)
                 {
                     if (!strcmp(lab[i].label, arg0))
                     {
                         // found corresponding label
                         a0 = lab[i].line;
+                        found = true;
                         break;
                     }
                 }
-                if (a0 < 0)
+                if (!found)
                 {
-                    printf("Label undefined");
+                    printf("Label undefined .fill");
                     exit(1);
                 }
-                line += a0; //must jump to label line, make it 16-bits
             }
-            else
-            {
-                //regular addition jump
-                a0 = atoi(arg0);
-                line += (a0);
-            }
+            line += a0;
         }
         else // error
         {
@@ -338,3 +351,4 @@ printHexToFile(FILE *outFilePtr, int word)
 {
     fprintf(outFilePtr, "0x%08X\n", word);
 }
+

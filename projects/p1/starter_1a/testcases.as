@@ -1,0 +1,9 @@
+spectest 	ABCDEFGHIJKLMNO
+test1 		ABCDEFGHIJKLMNO
+test2		BEFGHIJL
+test3		BEFGHIJL
+test4		BEGIJL
+test5		BEGIJL
+test6		BEGIJL
+test7		BEGIL
+test8		BEGIL
