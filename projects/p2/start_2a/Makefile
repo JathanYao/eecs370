@@ -12,10 +12,10 @@ CXXFLAGS = -std=c99 -Wall -Werror -g3
 
 # Uncomment next line
 # if you are using our solution to project 1a.
-INST_OBJ = inst_p1a_obj.linux_x86.o
+ INST_OBJ = inst_p1a_obj.linux_x86.o
 
 # Compile Assembler - uncomment $(INST_OBJ) if using instructor solution
-assembler: assembler.c $(INST_OBJ)
+jeremy: jeremy.c  $(INST_OBJ)
 	$(CXX) $(CXXFLAGS) $^ -o $@
 
 # Compile Linker

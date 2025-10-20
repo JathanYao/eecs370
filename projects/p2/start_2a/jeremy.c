@@ -138,8 +138,8 @@ int main(int argc, char **argv)
 {
     char *inFileStr, *outFileStr;
     FILE *inFilePtr, *outFilePtr;
-    char label[MAXLINELENGTH], opcode[MAXLINELENGTH], arg0[MAXLINELENGTH],
-        arg1[MAXLINELENGTH], arg2[MAXLINELENGTH];
+    //char label[MAXLINELENGTH], opcode[MAXLINELENGTH], arg0[MAXLINELENGTH],
+       // arg1[MAXLINELENGTH], arg2[MAXLINELENGTH];
 
     if (argc != 3)
     {

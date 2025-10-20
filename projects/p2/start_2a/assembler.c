@@ -61,7 +61,8 @@ int main(int argc, char **argv)
 
     // DECLARING VARIABLES
     label_line lab[MAXLINELENGTH];
-    int pc = 0, count = 0;
+    char undef_header[MAXLINELENGTH][7];
+    int pc = 0, count = 0, undefcount = 0;
     int textLength = 0;
     int symbolLength = 0;
     int dataLength = 0;
@@ -73,14 +74,19 @@ int main(int argc, char **argv)
         if (strcmp(label, "")) // not empty
         {
             if (isupper(label[0]))
-                symbolLength++; // count symbols, labels that start with uppercase letter
+            {
+                //add to symbol array
+                //symbols[symbolLength] = label;
+                printf("added a label %s\n", label);
+                symbolLength++;
+            }
             lab[count].line = pc;
             strcpy(lab[count].label, label); // store line of label
             count++;
         }
         if (strcmp(opcode, ".fill"))
             textLength++; // count as long as its not a .fill
-        if (!strcmp(opcode, ".fill"))
+        else 
             dataLength++; // count data words
         if ((!strcmp(opcode, "lw") || !strcmp(opcode, "sw")) && !isNumber(arg2))
             relocLength++; // count relocations, lw/sw with label in arg2
@@ -106,7 +112,7 @@ int main(int argc, char **argv)
 
     rewind(inFilePtr);
 
-    // check all labels in lw sw if they are undefined or not
+    // check all labels in lw sw, and .fill if they are undefined or not
     while (readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2))
     {
         if ((!strcmp(opcode, "lw") || !strcmp(opcode, "sw")) && isupper(arg2[0])) // if is lw or sw
@@ -123,14 +129,57 @@ int main(int argc, char **argv)
             }
             if (!found)
             {
-                // if not found, check if its just an undefined local
-                if (!isupper(arg2[0]))
+                bool undefFound = false;
+                for (int i = 0; i < undefcount; i++)
                 {
-                    // just a normal undefined label
-                    printf("Label undefined lw/sw");
-                    exit(1);
+                    if (!strcmp(undef_header[i], arg2))
+                    {
+                        undefFound = true;
+                        break;
+                    }
                 }
-                symbolLength++; // count undefined global as a symbol
+                if(!undefFound)
+                {
+                    strcpy(undef_header[undefcount], arg2); //add to undefined array to prevent overcounting undefined globals
+                    undefcount++;
+                    printf("added an i type %s\n", arg2);
+                    symbolLength++; // count undefined global as a symbol
+                }
+            }
+        }
+        if (!strcmp(opcode, ".fill") && isupper(arg0[0])) // if is lw or sw
+        {
+            bool found = false;
+            for (int i = 0; i < count; i++)
+            {
+                if (!strcmp(lab[i].label, arg0))
+                {
+                    // found corresponding label
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                //add to symbols array
+                //symbols[symbolLength] = arg0;
+                //check if already in undefined
+                bool undefFound = false;
+                for (int i = 0; i < undefcount; i++)
+                {
+                    if (!strcmp(undef_header[i], arg0))
+                    {
+                        undefFound = true;
+                        break;
+                    }
+                }
+                if(!undefFound)
+                {
+                    printf("added a .fill %s\n", arg0);
+                    strcpy(undef_header[undefcount], arg0);
+                    undefcount++;
+                    symbolLength++; // count undefined global as a symbol
+                }
             }
         }
     }
@@ -305,6 +354,8 @@ int main(int argc, char **argv)
     }
 
     rewind(inFilePtr);
+    char undefined[MAXLINELENGTH][7];
+    undefcount = 0;
 
     // output symbol table
     dataLength = 0; // reset dataLength to reuse as data counter
@@ -317,8 +368,10 @@ int main(int argc, char **argv)
             {
                 // check if its a fill
                 if (!strcmp(opcode, ".fill"))
+                {
                     // data symbol
                     fprintf(outFilePtr, "%s D %d\n", label, dataLength);
+                }
                 else
                 {
                     // text symbol
@@ -328,8 +381,9 @@ int main(int argc, char **argv)
         }
         if ((!strcmp(opcode, "lw") || !strcmp(opcode, "sw")))
         {
-            if (isupper(arg2[0]))
+            if (isupper(arg2[0])) //if its a label in lw/sw
             {
+                //check if defined 
                 bool found = false;
                 for (int i = 0; i < count; i++)
                 {
@@ -340,11 +394,65 @@ int main(int argc, char **argv)
                     }
                 }
                 if (!found)
-                    fprintf(outFilePtr, "%s U 0\n", arg2);
+                {
+                    //check if its already in the undefined array
+                    bool undefFound = false;
+                    for (int i = 0; i < undefcount; i++)
+                    {
+                        if (!strcmp(undefined[i], arg2))
+                        {
+                            undefFound = true;
+                            break;
+                        }
+                    }
+                    if(!undefFound)
+                    {
+                        //only print if not in undefined array
+                        fprintf(outFilePtr, "%s U 0\n", arg2);
+                        strcpy(undefined[undefcount], arg2); //add to undefined array to prevent overcounting undefined globals
+                        undefcount++;
+                    }
+                }
             }
         }
         if (!strcmp(opcode, ".fill"))
+        {
+            //if its a global .fill and its not in labels and not in undefined
+            if (isupper(arg0[0])) //if its a label in lw/sw
+            {
+                //check if defined 
+                bool found = false;
+                for (int i = 0; i < count; i++)
+                {
+                    if (!strcmp(lab[i].label, arg0))
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    //check if its already in the undefined array
+                    bool undefFound = false;
+                    for (int i = 0; i < undefcount; i++)
+                    {
+                        if (!strcmp(undefined[i], arg0))
+                        {
+                            undefFound = true;
+                            break;
+                        }
+                    }
+                    if(!undefFound)
+                    {
+                        //only print if not in undefined array
+                        fprintf(outFilePtr, "%s U 0\n", arg0);
+                        strcpy(undefined[undefcount], arg0); //add to undefined array to prevent overcounting undefined globals
+                        undefcount++;
+                    }
+                }
+            }
             dataLength++;
+        }
         textLength++;
     }
 
@@ -494,8 +602,7 @@ int readAndParse(FILE *inFilePtr, char *label, char *opcode, char *arg0,
      * Parse the rest of the line.  Would be nice to have real regular
      * expressions, but scanf will suffice.
      */
-    sscanf(ptr, "%*[\t\n\r ]%[^\t\n\r ]%*[\t\n\r ]%[^\t\n\r ]%*[\t\n\r ]%[^\t\n\r ]%*[\t\n\r ]%[^\t\n\r ]",
-           opcode, arg0, arg1, arg2);
+    sscanf(ptr, "%*[\t\n\r ]%[^\t\n\r ]%*[\t\n\r ]%[^\t\n\r ]%*[\t\n\r ]%[^\t\n\r ]%*[\t\n\r ]%[^\t\n\r ]", opcode, arg0, arg1, arg2);
 
     return (1);
 }
