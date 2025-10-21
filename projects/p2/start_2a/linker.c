@@ -44,7 +44,9 @@ typedef struct
 typedef struct 
 {
     int textSize;
+    int textStart;
     int dataSize;
+    int dataStart;
     int symbolSize;
     int relocSize;
     int text[MAXLINELENGTH];
@@ -86,7 +88,8 @@ int main(int argc, char **argv)
         }
 
         char lines[MAXLINELENGTH];
-
+        //read ins
+        {
         //----------------------------------READ IN HEADER----------------------------------//
         readHeader(inFilePtr, files[i].textSize, files[i].dataSize, files[i].symbolSize, files[i].relocSize);
         //----------------------------------READ IN HEADER----------------------------------//
@@ -120,6 +123,45 @@ int main(int argc, char **argv)
         }
         //----------------------------------READ IN RELOCATIONS----------------------------------//
         fclose(inFilePtr);
+        }
+        //start changing
+
+        int startLine = 0;
+        //find starting points of text and data sections for each file
+        for(int i = 0; i < sizeof(files); i++)
+        {
+            files[i].textStart = startLine;
+            startLine += files[i].textSize;
+        }
+        for(int i = 0; i < sizeof(files); i++)
+        {
+            files[i].dataStart = startLine;
+            startLine += files[i].dataSize;
+        }
+
+        //check global labels defined in > 1 files
+        for(int i = 0; i < sizeof(files) - 1; i++)
+        {
+            for(int j = 0; j < files[i].symbolSize; j++)
+            {
+                for(int k = i + 1; k < sizeof(files); k++)
+                {
+                    for(int l = 0; l < files[k].symbolSize; l++)
+                    {
+                        bool sameLabel = (!strcmp(files[i].symbolTable[k].label, files[k].symbolTable[l].label));
+                        bool bothDefined = files[i].symbolTable[k].label != "U" && files[k].symbolTable[l].label != "U";
+                        if(sameLabel && bothDefined)
+                        {
+                            printf("Error: Duplicate Label");
+                            exit(1);
+                        }
+                    }
+                }
+            }
+        }
+
+        //fix all local labels
+        
     }
 
     fclose(outFilePtr);
