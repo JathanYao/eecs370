@@ -13,12 +13,13 @@
 // Every LC2K file will contain less than 1000 lines of assembly.
 #define MAXLINELENGTH 1000
 #define MAXADDRESSES 65535
+
 int readHeader(FILE *inFilePtr, int *text, int* data, int* symbols, int* relocations);
 int readRelocation(FILE *inFilePtr, int* address, char* opcode, char* label);
 int readSymbol(FILE *inFilePtr, char* label, char* type, int* address);
 int readTextorData(FILE *inFilePtr, int *instr);
 
-
+static inline void printHexToFile(FILE *, int);
 
 typedef struct 
 {
@@ -45,6 +46,7 @@ typedef struct
     }relocTable[MAXLINELENGTH];
 }File;
 
+int getGlobal(File *files, int numFiles, char* label);
 
 int main(int argc, char **argv)
 {
@@ -109,113 +111,159 @@ int main(int argc, char **argv)
         {
             files[i].relocTable[j].fromFile = i;
             readRelocation(inFilePtr, &files[i].relocTable[j].address, files[i].relocTable[j].opcode, files[i].relocTable[j].label);
-        
+        }
         //----------------------------------READ IN RELOCATIONS----------------------------------//
     }
     fclose(inFilePtr);
-        //start changing
-        int startLine = 0;
-        //find starting points of text and data sections for each file
-        for(int i = 0; i < numFiles; i++)
-        {
-            files[i].textStart = startLine;
-            startLine += files[i].textSize;
-        }
-        for(int i = 0; i < numFiles; i++)
-        {
-            files[i].dataStart = startLine;
-            startLine += files[i].dataSize;
-        }
+    //start changing
+    int startLine = 0;
+    //find starting points of text and data sections for each file
+    for(int i = 0; i < numFiles; i++)
+    {
+        files[i].textStart = startLine;
+        startLine += files[i].textSize;
+    }
+    for(int i = 0; i < numFiles; i++)
+    {
+        files[i].dataStart = startLine;
+        startLine += files[i].dataSize;
+    }
 
-        //check global labels defined in > 1 files
-        for(int i = 0; i < numFiles - 1; i++)
+    //check global labels defined in > 1 files
+    for(int i = 0; i < numFiles - 1; i++)
+    {
+        for(int j = 0; j < files[i].symbolSize; j++)
         {
-            for(int j = 0; j < files[i].symbolSize; j++)
+            for(int k = i + 1; k < numFiles; k++)
             {
-                for(int k = i + 1; k < numFiles; k++)
+                for(int l = 0; l < files[k].symbolSize; l++)
                 {
-                    for(int l = 0; l < files[k].symbolSize; l++)
+                    bool sameLabel = (!strcmp(files[i].symbolTable[k].label, files[k].symbolTable[l].label));
+                    bool bothDefined = files[i].symbolTable[k].type != 'U' && files[k].symbolTable[l].type != 'U';
+                    if(sameLabel && bothDefined)
                     {
-                        bool sameLabel = (!strcmp(files[i].symbolTable[k].label, files[k].symbolTable[l].label));
-                        bool bothDefined = files[i].symbolTable[k].type != 'U' && files[k].symbolTable[l].type != 'U';
-                        if(sameLabel && bothDefined)
-                        {
-                            printf("Error: Duplicate Label");
-                            exit(1);
-                        }
+                        printf("Error: Duplicate Label");
+                        exit(1);
                     }
                 }
             }
         }
-        int ogOffset = 0, newOffset = 0;
-        //update text and data with relocations
-        for(int i = 0; i < numFiles; i++)
+    }
+    int ogOffset = 0, newOffset = 0, newInstr = 0;
+    //update text and data with relocations
+    for(int i = 0; i < numFiles; i++)
+    {
+        for(int j = 0; j < files[i].relocSize; j++)
         {
-            for(int j = 0; j < files[i].relocSize; j++)
+            char* label = files[i].relocTable[j].label;
+            char* opcode = files[i].relocTable[j].opcode;
+            bool isLocal = islower(label[0]);
+            bool isStack = (!strcmp(label, "Stack"));
+            int address = files[i].relocTable[j].address;
+            //check text or data relocation
+            if(!strcmp(opcode, "lw") || !strcmp(opcode, "sw"))
             {
-                //check text or data relocation
-                if(!strcmp(files[i].relocTable[j].opcode, "lw") || !strcmp(files[i].relocTable[j].opcode, "sw"))
+                //in text section (lw, sw)
+                int instruction = files[i].text[address];
+                if(isLocal)
                 {
-                    //in text section (lw, sw)
-                    char* label = files[i].relocTable[j].label;
-                    bool isLocal = islower(label[0]);
+                    //find offset from instruction
+                    ogOffset = instruction & 0xF; //gets last hex bit
 
-                    if(isLocal)
+                    if(ogOffset < files[i].textSize)
+                        newOffset = ogOffset + files[i].textStart; // compute newoffset by adding offset to file start location in text block
+                    else
+                        newOffset = files[i].dataStart; //label is located in data section (not a .fill)
+                    
+                }
+                else
+                {
+                    //global label
+                    ogOffset = 0; //would be undefined 0
+                    
+                    if(isStack) //check if its the Stack label
                     {
-                        int instruction = files[i].text[files[i].relocTable[j].address];
-
-                        //find offset from instruction
-                        ogOffset = instruction & 0xF; //gets last hex bit
-
-                        // compute newoffset by adding offset to file start location in text block
-                        newOffset = ogOffset + files[i].textStart; 
+                        //use startLine since it accumulated all text + data sizes
+                        newOffset = ogOffset + startLine; 
                     }
                     else
                     {
-                        //global label
-                        bool isStack = (!strcmp(label, "Stack"));
-                        if(isStack) //check if its the Stack label
-                        {
-                            //use startLine since it accumulated all text + data sizes
-                            newOffset = ogOffset + startLine; 
-                        }
-                        else
-                        {
-                            //find the global label value
-                            newOffset = getGlobal(files, numFiles, label);
-                        }
+                        //find the global label value
+                        newOffset = getGlobal(files, numFiles, label);
                     }
                 }
-                else //in data section (.fill)
+                // compute newInstr by removing old offset and adding new offset
+                newInstr = instruction - ogOffset + newOffset;
+                files[i].text[address] = newInstr; //set the new computed offset
+            }
+            else //in data section (.fill)
+            {
+                int instruction = files[i].data[address];
+                if(isLocal)
                 {
+                    ogOffset = files[i].data[address];
 
+                    if(ogOffset < files[i].textSize)
+                        newOffset = ogOffset + files[i].textStart; // compute newoffset by adding offset to file start location in text block
+                    else
+                        newOffset = files[i].dataStart; //label is located in data section (not a .fill)
                 }
-                files[i].text[files[i].relocTable[j].address] = newOffset; //set the new computed offset
+                else
+                {
+                    if(isStack) //check if its the Stack label
+                    {
+                        //use startLine since it accumulated all text + data sizes
+                        newOffset = ogOffset + startLine; 
+                    }
+                    else
+                    {
+                        //find the global label value
+                        newOffset = getGlobal(files, numFiles, label);
+                    }
+                }
+                // compute newInstr by removing old offset and adding new offset
+                newInstr = instruction - ogOffset + newOffset;
+                files[i].data[address] = newInstr; //set the new computed offset
             }
         }
     }
 
+    //print all the text and data
+    for(int i = 0; i < numFiles; i++)
+    {
+        for(int j = 0; j < files[i].textSize; j++)
+        {
+            printHexToFile(outFilePtr, files[i].text[j]);
+        }
+    }
+    for(int i = 0; i < numFiles; i++)
+    {
+        for(int j = 0; j < files[i].dataSize; j++)
+        {
+            printHexToFile(outFilePtr, files[i].data[j]);
+        }
+    }
     fclose(outFilePtr);
     
     return (0);
 }
 
 //returns value of the global label
-int getGlobal(File *files[6], int numFiles, char* label)
+int getGlobal(File *files, int numFiles, char* label)
 {
     int value = -1; //use to error check
     for(int i = 0; i < numFiles; i++)
     {
-        for(int j = 0; j < files[i]->symbolSize; j++)
+        for(int j = 0; j < files[i].symbolSize; j++)
         {
-            char type = files[i]->symbolTable->type;
+            char type = files[i].symbolTable->type;
             switch(type)
             {
                 case 'T':
-                    value = files[i]->symbolTable->address + files[i]->textStart;
+                    value = files[i].symbolTable->address + files[i].textStart;
                     break;
                 case 'D':
-                    value = files[i]->symbolTable->address + files[i]->dataStart;
+                    value = files[i].symbolTable->address + files[i].dataStart;
                     break;
             }
         }
@@ -256,13 +304,6 @@ int readHeader(FILE *inFilePtr, int *text, int* data, int* symbols, int* relocat
         printf("error: line too long\n");
         exit(1);
     }
-
-    // Ignore blank lines at the end of the file.
-    if (lineIsBlank(line))
-    {
-        return 0;
-    }
-
     /*
      * Parse the rest of the line.  Would be nice to have real regular
      * expressions, but scanf will suffice.
@@ -298,12 +339,6 @@ int readTextorData(FILE *inFilePtr, int *instr)
     {
         printf("error: line too long\n");
         exit(1);
-    }
-
-    // Ignore blank lines at the end of the file.
-    if (lineIsBlank(line))
-    {
-        return 0;
     }
 
     /*
@@ -344,12 +379,6 @@ int readSymbol(FILE *inFilePtr, char* label, char* type, int* address)
         exit(1);
     }
 
-    // Ignore blank lines at the end of the file.
-    if (lineIsBlank(line))
-    {
-        return 0;
-    }
-
     /*
      * Parse the rest of the line.  Would be nice to have real regular
      * expressions, but scanf will suffice.
@@ -388,17 +417,16 @@ int readRelocation(FILE *inFilePtr, int* address, char* opcode, char* label)
         printf("error: line too long\n");
         exit(1);
     }
-
-    // Ignore blank lines at the end of the file.
-    if (lineIsBlank(line))
-    {
-        return 0;
-    }
-
     /*
      * Parse the rest of the line.  Would be nice to have real regular
      * expressions, but scanf will suffice.
      */
     sscanf(line, "%d %6s %6s", address, opcode, label);
     return (1);
+}
+
+static inline void
+printHexToFile(FILE *outFilePtr, int word)
+{
+    fprintf(outFilePtr, "0x%08X\n", word);
 }

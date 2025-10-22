@@ -9,7 +9,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/start_2a/linker",
-      "args": ["count5_out.mc", "MINE.mc"],
+      "args": ["c5_0.obj", "c5_1.obj", "MINE.mc"],
       "stopAtEntry": false,
       "cwd": "${fileDirname}",
       "environment": [],
