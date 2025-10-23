@@ -3,3 +3,4 @@ subOne	lw	0	2	neg1
 	jalr	7	6
 neg1	.fill	-1
 SubAdr	.fill	subOne
+five	.fill	5

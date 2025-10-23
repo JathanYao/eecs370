@@ -5,6 +5,6 @@ start	add	1	2	1
 	nor	3	7	2
 	noop
 done	halt				end of program
-five	.fill	six
+five	.fill	4
 neg1	.fill	Neg1
 stAddr	.fill	start			will contain the address of start (2)

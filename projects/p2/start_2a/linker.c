@@ -103,6 +103,10 @@ int main(int argc, char **argv)
         for(int j = 0; j < files[i].symbolSize; j++)
         {
             readSymbol(inFilePtr, files[i].symbolTable[j].label, &files[i].symbolTable[j].type, &files[i].symbolTable[j].address);
+            if (!strcmp(files[i].symbolTable[j].label, "Stack") && files[i].symbolTable[j].type != 'U'){
+                printf("Error: Stack label defined\n");
+                exit(1);
+            }
         }
         //----------------------------------READ IN SYMBOLS----------------------------------//
 
@@ -142,14 +146,14 @@ int main(int argc, char **argv)
                     bool bothDefined = files[i].symbolTable[k].type != 'U' && files[k].symbolTable[l].type != 'U';
                     if(sameLabel && bothDefined)
                     {
-                        printf("Error: Duplicate Label");
+                        printf("Error: Duplicate Label\n");
                         exit(1);
                     }
                 }
             }
         }
     }
-    int ogOffset = 0, newOffset = 0, newInstr = 0;
+    int ogOffset = 0, newOffset = 0;
     //update text and data with relocations
     for(int i = 0; i < numFiles; i++)
     {
@@ -165,65 +169,61 @@ int main(int argc, char **argv)
             {
                 //in text section (lw, sw)
                 int instruction = files[i].text[address];
+                //find offset from instruction
+                ogOffset = instruction & 0xFFFF; //gets offset bits
                 if(isLocal)
                 {
-                    //find offset from instruction
-                    ogOffset = instruction & 0xF; //gets last hex bit
-
                     if(ogOffset < files[i].textSize)
-                        newOffset = ogOffset + files[i].textStart; // compute newoffset by adding offset to file start location in text block
+                        files[i].text[address] = files[i].textStart + instruction; // compute newoffset by adding offset to file start location in text block
                     else
-                        newOffset = files[i].dataStart; //label is located in data section (not a .fill)
-                    
+                    {
+                        int newInstr = files[i].dataStart - files[i].textSize + instruction;
+                        files[i].text[address] = newInstr; //label is located in data section (not a .fill)
+                    }
                 }
                 else
                 {
                     //global label
-                    ogOffset = 0; //would be undefined 0
-                    
                     if(isStack) //check if its the Stack label
                     {
                         //use startLine since it accumulated all text + data sizes
-                        newOffset = ogOffset + startLine; 
+                        newOffset = startLine; 
                     }
                     else
                     {
                         //find the global label value
                         newOffset = getGlobal(files, numFiles, label);
                     }
+                    // compute newInstr by adding new offset
+                    files[i].text[address] = instruction - ogOffset + newOffset; //set the new computed offset
                 }
-                // compute newInstr by removing old offset and adding new offset
-                newInstr = instruction - ogOffset + newOffset;
-                files[i].text[address] = newInstr; //set the new computed offset
             }
             else //in data section (.fill)
             {
-                int instruction = files[i].data[address];
+                ogOffset = files[i].data[address];
+
                 if(isLocal)
                 {
-                    ogOffset = files[i].data[address];
-
-                    if(ogOffset < files[i].textSize)
-                        newOffset = ogOffset + files[i].textStart; // compute newoffset by adding offset to file start location in text block
+                    if(ogOffset < files[i].textSize) //in text section
+                        files[i].data[address] = files[i].textStart + ogOffset; //ogOffset would start at 0
                     else
-                        newOffset = files[i].dataStart; //label is located in data section (not a .fill)
+                        files[i].data[address] = files[i].dataStart - files[i].textSize + ogOffset;
                 }
-                else
+                else //100% CORRECT
                 {
+                    //ogOffset is always 0
                     if(isStack) //check if its the Stack label
                     {
                         //use startLine since it accumulated all text + data sizes
-                        newOffset = ogOffset + startLine; 
+                        newOffset = startLine; 
                     }
                     else
                     {
                         //find the global label value
                         newOffset = getGlobal(files, numFiles, label);
                     }
+                    files[i].data[address] = newOffset; //set the new computed offset
                 }
-                // compute newInstr by removing old offset and adding new offset
-                newInstr = instruction - ogOffset + newOffset;
-                files[i].data[address] = newInstr; //set the new computed offset
             }
         }
     }
@@ -256,21 +256,24 @@ int getGlobal(File *files, int numFiles, char* label)
     {
         for(int j = 0; j < files[i].symbolSize; j++)
         {
-            char type = files[i].symbolTable->type;
-            switch(type)
+            if(!strcmp(files[i].symbolTable[j].label, label))
             {
-                case 'T':
-                    value = files[i].symbolTable->address + files[i].textStart;
-                    break;
-                case 'D':
-                    value = files[i].symbolTable->address + files[i].dataStart;
-                    break;
+                char type = files[i].symbolTable[j].type;
+                switch(type)
+                {
+                    case 'T':
+                        value = files[i].symbolTable[j].address + files[i].textStart;
+                        break;
+                    case 'D':
+                        value = files[i].symbolTable[j].address + files[i].dataStart;
+                        break;
+                }
             }
         }
     }
     if(value == -1)
     {
-        printf("Error: label never defined");
+        printf("Error: Undefined Global Label\n");
         exit(1);
     }
     return value;
