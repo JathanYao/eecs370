@@ -7,10 +7,11 @@ start	add	1	2	1
 StAddr	add	1	2	1
 	beq	4	1	6
 	noop
-done	halt				
+	
+done	halt
 	.fill	-1
 	.fill	6578
 nine	.fill	-6578
 five	.fill	5
 Nine	.fill	-1
-	.fill	nine			
+	.fill	nine

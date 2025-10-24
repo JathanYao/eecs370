@@ -1,10 +1,10 @@
-	sw	5	1	five
+Nine	sw	5	1	five
 	lw	1	2	3
 start	add	1	2	1
-	beq	4	1	StAddr
-	sw	5	1	nine
+	beq	4	1	3
+	sw	5	1	StAddr
 	lw	1	2	3
-Nine	add	1	2	1
+	add	1	2	1
 	beq	4	1	6
 	noop
 done	halt
@@ -12,5 +12,5 @@ done	halt
 	.fill	6578
 nine	.fill	-6578
 five	.fill	5
-neg1	.fill	-1
-StAddr	.fill	nine
+	.fill	-1
+	.fill	nine

@@ -14,8 +14,8 @@
 // DO NOT CHANGE THE FOLLOWING DEFINITIONS
 
 // Machine Definitions
-#define MEMORYSIZE 65536 /* maximum number of words in memory (maximum number of lines in a given file)*/
-#define NUMREGS 8        /*total number of machine registers [0,7]*/
+#define MEMORYSIZE 6553600 /* maximum number of words in memory (maximum number of lines in a given file)*/
+#define NUMREGS 8          /*total number of machine registers [0,7]*/
 
 // File Definitions
 #define MAXLINELENGTH 1000 /* MAXLINELENGTH is the max number of characters we read */
