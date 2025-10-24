@@ -6,5 +6,5 @@ GLOB	beq	4	1	6
 	noop
 done	halt				end of program
 five	.fill	5
-neg1	.fill	-1
+Nine	.fill	-1
 stAddr	.fill	start			will contain the address of start (2)

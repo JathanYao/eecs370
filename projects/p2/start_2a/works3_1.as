@@ -14,3 +14,8 @@ nine	.fill	Stack
 five	.fill	5
 neg1	.fill	-1
 StAddr	.fill	Nine			
+N	.fill	7
+R	.fill	5
+Pos1	.fill	1
+Neg1	.fill	-1
+Faddr	.fill	Comb
