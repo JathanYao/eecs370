@@ -1,0 +1,12 @@
+	lw	0	1	fill
+	noop
+	noop
+	noop
+	nor	1	1	2
+	noop
+	noop
+	noop
+	nor	2	2	3 safe
+	nor	2	2	4 safe
+	halt
+fill	.fill	5

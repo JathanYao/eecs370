@@ -1,0 +1,12 @@
+	lw	0	2	fill
+	noop
+	noop
+	noop
+	add	2	2	2
+	lw	0	1	fill
+	noop
+	noop
+	noop
+	add	1	1	1
+	halt
+fill	.fill	5
