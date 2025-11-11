@@ -3,8 +3,9 @@
 	lw	0	4	Faddr	// load function address
 	jalr	4	7		// call function
 	halt
-comb	sw	5	7	Stack	//save return address to Stack
-	lw	0	6	pos1	//load reg6 = 1
+recur	lw	0	6	one	//load reg6 = 1
+	sw	5	7	Stack	//save return address to Stack
+	
 	add	5	6	5	//sp++
 	sw	5	1	Stack	//save n to Stack
 	add	5	6	5	//sp++
@@ -23,8 +24,8 @@ comb	sw	5	7	Stack	//save return address to Stack
 	add	5	6	5	//sp--
 	lw	5	1	Stack	//restore n
 	add	1	6	1	//n--;
+	lw	0	6	one	//load reg6 = 1
 	sw	5	3	Stack	//save result of first call in reg3
-	lw	0	6	pos1	//load reg6 = 1
 	add	5	6	5	//sp++
 	lw	0	4	Faddr	// load function address
 	jalr	4	7		//call comb(n-1, r)
@@ -34,16 +35,17 @@ comb	sw	5	7	Stack	//save return address to Stack
 	add	3	4	3	//reg3 = reg3 + reg4
 	add	5	6	5	//sp--
 	lw	5	7	Stack	//restore return address
-	jalr	7	6		//jump back to caller
-base	lw	0	6	neg1	//reg6 = -1
+	jalr	7	4		//jump back to caller
+base	lw	0	3	one	//reg3 = 1
+	lw	0	6	neg1	//reg6 = -1
 	add	5	6	5	//sp--
 	add	5	6	5	//sp-- //pop r
 	add	5	6	5	//sp-- //pop n
 	lw	5	7	Stack	//restore return address
-	lw	0	3	pos1	//reg3 = 1
 	jalr	7	6		//jump back
 n	.fill	7
-r	.fill	5
-pos1	.fill	1
+r	.fill	3
+Faddr	.fill	recur
+one	.fill	1
 neg1	.fill	-1
-Faddr	.fill	comb
+Stack	.fill	0
