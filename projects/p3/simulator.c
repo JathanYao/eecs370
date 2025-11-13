@@ -199,14 +199,14 @@ int main(int argc, char *argv[])
         newState.IDEX.offset = convertNum(field2(state.IFID.instr));
 
         //consider hazards (lw followed by instr that uses loaded reg)
-        bool id_hazard = (opcode(state.IDEX.instr) == LW) && (field1(newState.IDEX.instr) == field1(state.IDEX.instr)) || (field0(newState.IDEX.instr) == field1(state.IDEX.instr));
+        bool id_hazard = (opcode(state.IDEX.instr) == LW) && ((field1(newState.IDEX.instr) == field1(state.IDEX.instr)) || (field0(newState.IDEX.instr) == field1(state.IDEX.instr)));
         //true if previous instruction is LW and either regA or regB of next instr uses the loaded register from lw
 
         if(id_hazard)
         {
             newState.IDEX.instr = NOOPINSTR;
             newState.pc = state.pc; //dont increment pc
-            newState.IFID = state.IFID; //reverts default sets above
+            newState.IFID = state.IFID; //reverts default changes from above
         }
         
         /* ---------------------- EX stage --------------------- */
@@ -222,76 +222,73 @@ int main(int argc, char *argv[])
         
         newState.EXMEM.instr = state.IDEX.instr; //pass instruction along
         newState.EXMEM.branchTarget = state.IDEX.offset + state.IDEX.pcPlus1; //find branch target
-        newState.EXMEM.valB = state.IDEX.valB; //pass valB along
 
         int EX_op = opcode(state.IDEX.instr);
-
-        //check for hazard in WB/END
-        int WB_op = opcode(state.WBEND.instr);
-        int WB_dest = getDestReg(state.WBEND.instr);
-        int valA, valB;
         int regA = field0(state.IDEX.instr);
         int regB = field1(state.IDEX.instr);
-        bool relevant_op = WB_op == ADD || WB_op == NOR || WB_op == LW;
-
-        if(relevant_op)
-        {
-            valA = regA == WB_dest ? state.WBEND.writeData : state.IDEX.valA; //check if we read the forwarded data or just from register
-            valB = regB == WB_dest ? state.WBEND.writeData : state.IDEX.valB;
-        }
-
-        //check for hazard in MEM/WB
-        int MEM_op = opcode(state.MEMWB.instr);
-        int MEM_dest = getDestReg(state.MEMWB.instr);
-        relevant_op = MEM_op == ADD || MEM_op == NOR || MEM_op == LW;
-
-        if(relevant_op)
-        {
-            valA = regA == MEM_dest ? state.MEMWB.writeData : state.IDEX.valA; //check if we read the forwarded data or just from register
-            valB = regB == MEM_dest ? state.MEMWB.writeData : state.IDEX.valB;
-        }
 
         //check for hazard in EX/MEM
         int EXM_op = opcode(state.EXMEM.instr);
         int EXM_dest = getDestReg(state.EXMEM.instr);
-        relevant_op = EXM_op == ADD || EXM_op == NOR || EXM_op == LW;
+        int MEM_op = opcode(state.MEMWB.instr);
+        int MEM_dest = getDestReg(state.MEMWB.instr);
+        int WB_op = opcode(state.WBEND.instr);
+        int WBdest = getDestReg(state.WBEND.instr);
+        bool RELV_EXM = EXM_op == ADD || EXM_op == NOR || EXM_op == LW;
+        bool RELV_MEM = MEM_op == ADD || MEM_op == NOR || MEM_op == LW;
+        bool RELV_WB = WB_op == ADD || WB_op == NOR || WB_op == LW;
 
-        if(relevant_op)
+
+        //defualt valA/B values
+        int valA = state.IDEX.valA, valB = state.IDEX.valB;
+
+        if(RELV_EXM)
         {
-            valA = regA == EXM_dest ? state.EXMEM.aluResult : state.IDEX.valA; //check if we read the forwarded data or just from register
-            valB = regB == EXM_dest ? state.EXMEM.aluResult : state.IDEX.valB;
+            valA = regA == EXM_dest ? state.EXMEM.aluResult : valA; //check if we read the forwarded data or just from register
+            valB = regB == EXM_dest ? state.EXMEM.aluResult : valB;
         }
-
-        int secondOperand = (EX_op == NOR || EX_op == ADD) ? state.IDEX.valB : state.IDEX.offset;
+        if(RELV_MEM)
+        {
+            valA = regA == MEM_dest ? state.MEMWB.writeData : valA; //check if we read the forwarded data or just from register
+            valB = regB == MEM_dest ? state.MEMWB.writeData : valB;
+        }
+        if(RELV_WB)
+        {
+            valA = regA == WBdest ? state.WBEND.writeData : valA; //check if we read the forwarded data or just from register
+            valB = regB == WBdest ? state.WBEND.writeData : valB;
+        }
 
         //alu functionality
 
         if (EX_op == ADD)
-            newState.EXMEM.aluResult = state.IDEX.valA + secondOperand;
+            newState.EXMEM.aluResult = valA + valB;
         else if (EX_op == NOR)
-            newState.EXMEM.aluResult = ~(state.IDEX.valA | secondOperand);
+            newState.EXMEM.aluResult = ~(valA | valB);
         else if (EX_op == LW || EX_op == SW)
-            newState.EXMEM.aluResult = state.IDEX.valA + secondOperand;
+            newState.EXMEM.aluResult = valA + state.IDEX.offset;
         else
             newState.EXMEM.aluResult = 0;
-        newState.EXMEM.eq = (state.IDEX.valA == secondOperand);
+
+        if(valA == valB)newState.EXMEM.eq = 1;
+        newState.EXMEM.valB = valB; //pass valB along
         
         /* --------------------- MEM stage --------------------- */
         /*
         gets dataMem or aluresult based on lw/sw
         store valb into datamem[aluresult]
         gets instruction
+        if 
         */
         newState.MEMWB.instr = state.EXMEM.instr;
 
-        int MEM_op = opcode(state.EXMEM.instr);
-        newState.MEMWB.writeData = state.EXMEM.aluResult; // directly load aluresult as default
+        int MEMop = opcode(state.EXMEM.instr);
+        newState.MEMWB.writeData = state.EXMEM.aluResult; // directly load aluresult as default, would be discarded if its a sw/beq/noop/halt
 
-        if (MEM_op == LW)
+        if (MEMop == LW)
             newState.MEMWB.writeData = state.dataMem[state.EXMEM.aluResult]; // load from data memory
-        else if (MEM_op == SW)
-            newState.dataMem[state.EXMEM.aluResult] = state.EXMEM.valB;
-        else if (MEM_op == BEQ && state.EXMEM.eq == 1) //take the branch
+        else if (MEMop == SW)
+            newState.dataMem[state.EXMEM.aluResult] = state.EXMEM.valB; //store reg value to memory
+        else if (MEMop == BEQ && state.EXMEM.eq == 1) //take the branch
         {
             newState.pc = state.EXMEM.branchTarget; //change the pc to the target
             newState.IFID.instr = NOOPINSTR; //add 3 noops to flush pipeline
@@ -308,14 +305,18 @@ int main(int argc, char *argv[])
         */
         newState.WBEND.writeData = state.MEMWB.writeData;
         newState.WBEND.instr = state.MEMWB.instr;
-        int WB_op = opcode(state.MEMWB.instr), WB_dest;
+        int WBop = opcode(state.MEMWB.instr), WB_dest;
 
-        if (WB_op == ADD || WB_op == NOR)
+        if (WBop == ADD || WBop == NOR)
+        {
             WB_dest = field2(state.MEMWB.instr); // destination register for add/nor
-        else if (WB_op == LW)
+            newState.reg[WB_dest] = state.MEMWB.writeData;
+        }
+        else if (WBop == LW)
+        {
             WB_dest = field1(state.MEMWB.instr); // destination register for lw
-            
-        newState.reg[WB_dest] = state.MEMWB.writeData;
+            newState.reg[WB_dest] = state.MEMWB.writeData; //writes back to the register
+        }
         /* ------------------------ END ------------------------ */
         state = newState; /* this is the last statement before end of the loop. It marks the end
         of the cycle and updates the current state with the values calculated in this cycle */
