@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
         gets instruction
         */
 
-        
+        //DATA HAZARD WITH NO STALL -> DATA FORWARDING
         newState.EXMEM.instr = state.IDEX.instr; //pass instruction along
         newState.EXMEM.branchTarget = state.IDEX.offset + state.IDEX.pcPlus1; //find branch target
 
@@ -227,37 +227,30 @@ int main(int argc, char *argv[])
         int regA = field0(state.IDEX.instr);
         int regB = field1(state.IDEX.instr);
 
-        //check for hazard in EX/MEM
-        int EXM_op = opcode(state.EXMEM.instr);
-        int EXM_dest = getDestReg(state.EXMEM.instr);
-        int MEM_op = opcode(state.MEMWB.instr);
-        int MEM_dest = getDestReg(state.MEMWB.instr);
-        int WB_op = opcode(state.WBEND.instr);
-        int WBdest = getDestReg(state.WBEND.instr);
-        bool RELV_EXM = EXM_op == ADD || EXM_op == NOR || EXM_op == LW;
-        bool RELV_MEM = MEM_op == ADD || MEM_op == NOR || MEM_op == LW;
-        bool RELV_WB = WB_op == ADD || WB_op == NOR || WB_op == LW;
-
+        //check for hazard in EX/MEM lecture 14
+        int WB_dest = getDestReg(opcode(state.WBEND.instr));
+        int MEM_dest = getDestReg(opcode(state.MEMWB.instr));
 
         //defualt valA/B values
         int valA = state.IDEX.valA, valB = state.IDEX.valB;
 
-        if(RELV_EXM)
+        if(MEM_dest == regA) //MEM TAKES PRIORITY
         {
-            valA = regA == EXM_dest ? state.EXMEM.aluResult : valA; //check if we read the forwarded data or just from register
-            valB = regB == EXM_dest ? state.EXMEM.aluResult : valB;
+            valA = state.MEMWB.writeData;
         }
-        if(RELV_MEM)
+        else if(WB_dest == regA)
         {
-            valA = regA == MEM_dest ? state.MEMWB.writeData : valA; //check if we read the forwarded data or just from register
-            valB = regB == MEM_dest ? state.MEMWB.writeData : valB;
-        }
-        if(RELV_WB)
-        {
-            valA = regA == WBdest ? state.WBEND.writeData : valA; //check if we read the forwarded data or just from register
-            valB = regB == WBdest ? state.WBEND.writeData : valB;
+            valA = state.WBEND.writeData;
         }
 
+        if(MEM_dest == regB) //MEM TAKES PRIORITY
+        {
+            valB = state.MEMWB.writeData;
+        }
+        else if(WB_dest == regB)
+        {
+            valB = state.WBEND.writeData;
+        }
         //alu functionality
 
         if (EX_op == ADD)
@@ -305,17 +298,17 @@ int main(int argc, char *argv[])
         */
         newState.WBEND.writeData = state.MEMWB.writeData;
         newState.WBEND.instr = state.MEMWB.instr;
-        int WBop = opcode(state.MEMWB.instr), WB_dest;
+        int WBop = opcode(state.MEMWB.instr), WBdest;
 
         if (WBop == ADD || WBop == NOR)
         {
-            WB_dest = field2(state.MEMWB.instr); // destination register for add/nor
-            newState.reg[WB_dest] = state.MEMWB.writeData;
+            WBdest = field2(state.MEMWB.instr); // destination register for add/nor
+            newState.reg[WBdest] = state.MEMWB.writeData;
         }
         else if (WBop == LW)
         {
-            WB_dest = field1(state.MEMWB.instr); // destination register for lw
-            newState.reg[WB_dest] = state.MEMWB.writeData; //writes back to the register
+            WBdest = field1(state.MEMWB.instr); // destination register for lw
+            newState.reg[WBdest] = state.MEMWB.writeData; //writes back to the register
         }
         /* ------------------------ END ------------------------ */
         state = newState; /* this is the last statement before end of the loop. It marks the end

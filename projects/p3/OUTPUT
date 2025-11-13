@@ -350,7 +350,7 @@ state before cycle 7 starts:
 		instruction = 0x00D70007 ( sw 2 7 7 )
 		branchTarget 11 (Don't Care)
 		eq ? True (Don't Care)
-		aluResult = 7
+		aluResult = 30
 		valB = 0
 	MEM/WB pipeline register:
 		instruction = 0x01C00000 ( noop )
@@ -371,7 +371,7 @@ state before cycle 8 starts:
 		dataMem[ 4 ] = 0x00D60007
 		dataMem[ 5 ] = 0x00760006
 		dataMem[ 6 ] = 0x01800000
-		dataMem[ 7 ] = 0x00000000
+		dataMem[ 7 ] = 0x00000017
 	registers:
 		reg[ 0 ] = 0
 		reg[ 1 ] = 0
@@ -394,11 +394,11 @@ state before cycle 8 starts:
 		instruction = 0x00D60007 ( sw 2 6 7 )
 		branchTarget 12 (Don't Care)
 		eq ? True (Don't Care)
-		aluResult = 7
+		aluResult = 30
 		valB = 0
 	MEM/WB pipeline register:
 		instruction = 0x00D70007 ( sw 2 7 7 )
-		writeData = 7 (Don't Care)
+		writeData = 30 (Don't Care)
 	WB/END pipeline register:
 		instruction = 0x01C00000 ( noop )
 		writeData = 0 (Don't Care)
@@ -415,7 +415,7 @@ state before cycle 9 starts:
 		dataMem[ 4 ] = 0x00D60007
 		dataMem[ 5 ] = 0x00760006
 		dataMem[ 6 ] = 0x01800000
-		dataMem[ 7 ] = 0x00000000
+		dataMem[ 7 ] = 0x00000017
 	registers:
 		reg[ 0 ] = 0
 		reg[ 1 ] = 0
@@ -442,10 +442,10 @@ state before cycle 9 starts:
 		valB = 0 (Don't Care)
 	MEM/WB pipeline register:
 		instruction = 0x00D60007 ( sw 2 6 7 )
-		writeData = 7 (Don't Care)
+		writeData = 30 (Don't Care)
 	WB/END pipeline register:
 		instruction = 0x00D70007 ( sw 2 7 7 )
-		writeData = 7 (Don't Care)
+		writeData = 30 (Don't Care)
 end state
 
 @@@
@@ -459,7 +459,7 @@ state before cycle 10 starts:
 		dataMem[ 4 ] = 0x00D60007
 		dataMem[ 5 ] = 0x00760006
 		dataMem[ 6 ] = 0x01800000
-		dataMem[ 7 ] = 0x00000000
+		dataMem[ 7 ] = 0x00000017
 	registers:
 		reg[ 0 ] = 0
 		reg[ 1 ] = 0
@@ -489,7 +489,7 @@ state before cycle 10 starts:
 		writeData = -1
 	WB/END pipeline register:
 		instruction = 0x00D60007 ( sw 2 6 7 )
-		writeData = 7 (Don't Care)
+		writeData = 30 (Don't Care)
 end state
 Machine halted
 Total of 11 cycles executed
@@ -506,7 +506,7 @@ state before cycle 11 starts:
 		dataMem[ 4 ] = 0x00D60007
 		dataMem[ 5 ] = 0x00760006
 		dataMem[ 6 ] = 0x01800000
-		dataMem[ 7 ] = 0x00000000
+		dataMem[ 7 ] = 0x00000017
 	registers:
 		reg[ 0 ] = 0
 		reg[ 1 ] = 0
